@@ -18,15 +18,18 @@ function Timeline({ status }) {
                     top: '15px',
                     left: '0',
                     right: '0',
-                    height: '2px',
-                    background: 'rgba(255,255,255,0.2)',
-                    zIndex: 0
+                    height: '4px',
+                    background: 'rgba(42, 49, 102, 0.1)',
+                    zIndex: 0,
+                    borderRadius: '2px'
                 }}>
                     <div style={{
                         width: `${(currentStep / (steps.length - 1)) * 100}%`,
                         height: '100%',
-                        background: isRejected ? '#ff1744' : '#00e676',
-                        transition: 'width 0.5s ease'
+                        background: isRejected ? 'var(--accent)' : 'var(--mint)',
+                        border: '1px solid var(--primary)',
+                        transition: 'width 0.5s ease',
+                        borderRadius: '2px'
                     }} />
                 </div>
 
@@ -34,9 +37,16 @@ function Timeline({ status }) {
                     const isCompleted = index <= currentStep;
                     const isCurrent = index === currentStep;
 
-                    let circleColor = 'rgba(255,255,255,0.1)';
-                    if (isCompleted) circleColor = '#00e676';
-                    if (isRejected && isCurrent) circleColor = '#ff1744';
+                    let circleColor = 'var(--bg-soft)';
+                    let borderColor = 'rgba(42, 49, 102, 0.2)';
+                    if (isCompleted) {
+                        circleColor = 'var(--mint)';
+                        borderColor = 'var(--primary)';
+                    }
+                    if (isRejected && isCurrent) {
+                        circleColor = 'var(--accent)';
+                        borderColor = 'var(--primary)';
+                    }
 
                     return (
                         <div key={step} style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
@@ -45,19 +55,21 @@ function Timeline({ status }) {
                                 height: '30px',
                                 borderRadius: '50%',
                                 background: circleColor,
-                                border: `2px solid ${isCompleted ? (isRejected && isCurrent ? '#ff1744' : '#00e676') : 'rgba(255,255,255,0.3)'}`,
+                                border: `2px solid ${borderColor}`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 margin: '0 auto 10px',
-                                color: 'white',
-                                fontWeight: 'bold'
+                                color: 'var(--primary)',
+                                fontWeight: '900',
+                                boxShadow: isCompleted ? '0 0 10px rgba(42, 49, 102, 0.2)' : 'none'
                             }}>
                                 {index + 1}
                             </div>
                             <div style={{
-                                color: isCompleted ? 'white' : 'rgba(255,255,255,0.5)',
-                                fontSize: '0.85rem'
+                                color: isCompleted ? 'var(--primary)' : 'rgba(42, 49, 102, 0.5)',
+                                fontSize: '0.85rem',
+                                fontWeight: '700'
                             }}>
                                 {step === 'Approved' && isRejected ? 'Decision' : step}
                             </div>

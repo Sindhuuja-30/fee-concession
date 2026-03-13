@@ -6,41 +6,53 @@ function NotificationBanner({ notifications, onClose }) {
     return (
         <div className="notification-container" style={{
             position: 'fixed',
-            bottom: '30px', // Move to bottom-right for less intrusion
-            right: '30px',
+            bottom: '40px',
+            right: '40px',
             zIndex: 2000,
             display: 'flex',
             flexDirection: 'column',
-            gap: '15px'
+            gap: '20px'
         }}>
             {notifications.map((notif) => (
                 <div key={notif._id} className={`notification-toast type-${notif.type}`} style={{
-                    background: '#252526', // Darker card background
-                    border: '1px solid #333',
-                    borderRadius: '8px',
-                    color: '#eee',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-                    width: '350px',
-                    animation: 'slideIn 0.3s ease-out',
+                    background: notif.type === 'success' ? '#cae7df' :
+                        notif.type === 'info' ? '#f4abaa' : '#ee7879',
+                    border: '3px solid #2a3166',
+                    borderRadius: '16px',
+                    color: '#2a3166',
+                    boxShadow: '0 15px 45px rgba(42, 49, 102, 0.2)',
+                    width: '400px',
+                    animation: 'slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
                     overflow: 'hidden',
                     display: 'flex',
-                    flexDirection: 'column'
+                    flexDirection: 'column',
+                    position: 'relative'
                 }}>
-                    <div style={{ padding: '15px', display: 'flex', alignItems: 'flex-start', gap: '15px' }}>
-                        <div style={{ fontSize: '1.2rem' }}>
+                    <div style={{ padding: '20px', display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
+                        <div style={{
+                            fontSize: '1.5rem', background: '#2a3166',
+                            padding: '10px', borderRadius: '12px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
                             {notif.type === 'info' ? 'ℹ️' : notif.type === 'success' ? '✅' : '⚠️'}
                         </div>
                         <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: '600', marginBottom: '5px', fontSize: '0.95rem' }}>
-                                {notif.type === 'info' ? 'New Update' : notif.type === 'success' ? 'Success' : 'Attention'}
+                            <div style={{ fontWeight: '900', marginBottom: '5px', fontSize: '1rem', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                                {notif.type === 'info' ? 'SYSTEM UPDATE' : notif.type === 'success' ? 'ACTION GRANTED' : 'SECURE ALERT'}
                             </div>
-                            <div style={{ fontSize: '0.9rem', color: '#ccc', lineHeight: '1.4' }}>
+                            <div style={{ fontSize: '0.95rem', color: '#2a3166', lineHeight: '1.5', fontWeight: '600' }}>
                                 {notif.message}
                             </div>
                         </div>
                         <button
-                            onClick={() => onClose(notif._id)} // This acts as dismiss/close
-                            style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '0 5px', fontSize: '1.1rem' }}
+                            onClick={() => onClose(notif._id)}
+                            style={{
+                                background: 'rgba(42, 49, 102, 0.1)', border: 'none',
+                                color: '#2a3166', cursor: 'pointer',
+                                padding: '8px', fontSize: '1.2rem',
+                                borderRadius: '50%', width: '30px', height: '30px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
                         >
                             ✕
                         </button>
@@ -48,51 +60,59 @@ function NotificationBanner({ notifications, onClose }) {
 
                     {/* Actions Row */}
                     <div style={{
-                        background: 'rgba(0,0,0,0.2)',
-                        padding: '10px 15px',
+                        background: 'rgba(42, 49, 102, 0.05)',
+                        padding: '12px 20px',
                         display: 'flex',
                         justifyContent: 'flex-end',
-                        gap: '10px',
-                        borderTop: '1px solid #333'
+                        gap: '15px',
+                        borderTop: '2px solid #2a3166'
                     }}>
                         {notif.relatedId && (
                             <button
                                 onClick={() => onClose(notif._id, 'view', notif.relatedId)}
                                 style={{
-                                    background: 'none',
+                                    background: '#2a3166',
                                     border: 'none',
-                                    color: '#64B5F6',
-                                    fontWeight: '600',
-                                    fontSize: '0.85rem',
-                                    cursor: 'pointer'
+                                    color: '#cae7df',
+                                    fontWeight: '800',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    padding: '6px 15px',
+                                    borderRadius: '20px',
+                                    textTransform: 'uppercase'
                                 }}
                             >
-                                View Application
+                                VIEW RECORD
                             </button>
                         )}
                         <button
                             onClick={() => onClose(notif._id, 'read')}
                             style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#aaa',
-                                fontSize: '0.85rem',
-                                cursor: 'pointer'
+                                background: 'transparent',
+                                border: '1px solid #2a3166',
+                                color: '#2a3166',
+                                fontSize: '0.8rem',
+                                fontWeight: '800',
+                                cursor: 'pointer',
+                                padding: '5px 12px',
+                                borderRadius: '20px',
+                                textTransform: 'uppercase'
                             }}
                         >
-                            Mark as Read
+                            ACKNOWLEDGE
                         </button>
                     </div>
                 </div>
             ))}
-            <style>{`
+            <style jsx>{`
                 @keyframes slideIn {
-                    from { transform: translateX(100%); opacity: 0; }
+                    from { transform: translateX(110%); opacity: 0; }
                     to { transform: translateX(0); opacity: 1; }
                 }
-                .type-success { border-left: 4px solid #00e676 !important; }
-                .type-error { border-left: 4px solid #ff1744 !important; }
-                .type-info { border-left: 4px solid #2196F3 !important; }
+                .notification-toast:hover {
+                    transform: translateX(-5px);
+                    transition: transform 0.2s ease;
+                }
             `}</style>
         </div>
     );

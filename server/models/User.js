@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true }, // Plain text for simplicity as requested
     role: { type: String, enum: ['student', 'admin'], default: 'student' },
 
@@ -22,6 +22,8 @@ const UserSchema = new mongoose.Schema({
     mobile: { type: String, default: '' },
     dependents: { type: Number, default: 0 },
     category: { type: String, default: '' },
+    parentContact: { type: String, default: '' },
+    hostelStatus: { type: String, enum: ['Hosteller', 'Day Scholar', ''], default: '' },
 
     // Documents Metadata (stored filenames)
     documents: {

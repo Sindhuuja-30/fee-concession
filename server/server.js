@@ -1022,7 +1022,7 @@ app.get('/api/analytics/fee-trend', async (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
 
-  app.get('*', (req, res) => {
+  app.use((req, res) => {
     if (req.path.startsWith('/api/')) {
       res.status(404).json({ error: 'API route not found on this server' });
     } else {

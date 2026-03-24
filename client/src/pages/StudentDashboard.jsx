@@ -1133,20 +1133,121 @@ function StudentDashboard() {
                                         </div>
                                     </div>
 
-                                    {app.status === 'Approved' && (
-                                        <div style={{ marginBottom: '20px', padding: '15px', background: 'white', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--primary)' }}>
-                                            <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)' }}>
-                                                🎉 Congratulations! Your concession is ready.
+                                    {/* Delay Compensation Wallet Feature */}
+                                    {(() => {
+                                        const applicationDate = new Date(app.date).getTime();
+                                        const currentDate = new Date().getTime();
+                                        const expectedProcessingTime = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+                                        
+                                        if ((currentDate - applicationDate) > expectedProcessingTime) {
+                                            const points = app.eligibilityScore || 0;
+                                            let tempPercentage = 0;
+                                            if (points >= 90) tempPercentage = 100;
+                                            else if (points >= 75) tempPercentage = 75;
+                                            else if (points >= 60) tempPercentage = 50;
+                                            
+                                            const fee = app.semesterFee || 0;
+                                            const temporaryAmount = (tempPercentage / 100) * fee;
+                                            
+                                            if (app.status === 'Pending' && temporaryAmount > 0) {
+                                                return (
+                                                    <div style={{ marginBottom: '20px', padding: '12px 16px', background: '#fdf8e4', borderRadius: '8px', border: '1px solid #f9e28d' }}>
+                                                        <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#b08a1d', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                                            💰 Wallet Update
+                                                        </div>
+                                                        <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#b08a1d', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            🟡 Temporary Credit Active
+                                                        </div>
+                                                        <div style={{ fontSize: '0.85rem', color: '#7a6014', fontWeight: '600' }}>
+                                                            "₹{temporaryAmount.toLocaleString('en-IN')} credited as Temporary Concession due to delay"
+                                                        </div>
+                                                    </div>
+                                                );
+                                            } else if (app.status === 'Approved' && temporaryAmount > 0) {
+                                                const finalPercentage = app.finalApprovedRate || app.concessionPercentage || app.recommendedConcessionRate || 0;
+                                                const finalAmount = (finalPercentage / 100) * fee;
+                                                
+                                                let settlementText = '';
+                                                if (finalAmount === temporaryAmount) {
+                                                    settlementText = "No further adjustments needed.";
+                                                } else if (finalAmount > temporaryAmount) {
+                                                    settlementText = `Added remaining ₹${(finalAmount - temporaryAmount).toLocaleString('en-IN')} to wallet.`;
+                                                } else {
+                                                    settlementText = `Pending Payment: ₹${(temporaryAmount - finalAmount).toLocaleString('en-IN')} (to be deducted).`;
+                                                }
+                                                
+                                                return (
+                                                    <div style={{ marginBottom: '20px', padding: '12px 16px', background: '#e8f5e9', borderRadius: '8px', border: '1px solid #c8e6c9' }}>
+                                                        <div style={{ fontSize: '0.95rem', fontWeight: '800', color: '#1e7e34', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                                            ✅ Final Settlement Completed
+                                                        </div>
+                                                        <div style={{ fontSize: '0.85rem', color: '#1e7e34', fontWeight: '600' }}>
+                                                            "Adjusted with final concession" — {settlementText}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                        }
+                                        return null;
+                                    })()}
+
+                                    {app.status === 'Approved' && (() => {
+                                        const fee = app.semesterFee || 0;
+                                        const percentage = app.finalApprovedRate || app.concessionPercentage || app.recommendedConcessionRate || 0;
+                                        const concessionAmount = (percentage / 100) * fee;
+                                        const payableAmount = fee - concessionAmount;
+
+                                        return (
+                                            <div style={{ marginBottom: '20px', padding: '15px', background: 'white', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--primary)' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)' }}>
+                                                        🎉 Congratulations! Your concession is ready.
+                                                    </div>
+                                                    <div 
+                                                        style={{ 
+                                                            fontSize: '0.95rem', 
+                                                            fontWeight: '700', 
+                                                            color: '#1e7e34', 
+                                                            background: '#e8f5e9', 
+                                                            padding: '6px 12px', 
+                                                            borderRadius: '8px',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            border: '1px solid #c8e6c9',
+                                                            width: 'fit-content'
+                                                        }}
+                                                    >
+                                                        ✔ Concession: {percentage}% (₹{concessionAmount.toLocaleString('en-IN')})
+                                                    </div>
+                                                    <div 
+                                                        style={{ 
+                                                            fontSize: '0.95rem', 
+                                                            fontWeight: '700', 
+                                                            color: 'var(--primary)', 
+                                                            background: 'var(--mint)', 
+                                                            padding: '6px 12px', 
+                                                            borderRadius: '8px',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            border: '1px solid var(--border-light)',
+                                                            width: 'fit-content'
+                                                        }}
+                                                    >
+                                                        💰 Amount to Pay: ₹{payableAmount.toLocaleString('en-IN')}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    className="btn-glow"
+                                                    style={{ padding: '8px 20px', fontSize: '0.85rem' }}
+                                                    onClick={() => navigate(`/student/approval/${app._id}`)}
+                                                >
+                                                    View Approval Details
+                                                </button>
                                             </div>
-                                            <button
-                                                className="btn-glow"
-                                                style={{ padding: '8px 20px', fontSize: '0.85rem' }}
-                                                onClick={() => navigate(`/student/approval/${app._id}`)}
-                                            >
-                                                View Approval Details
-                                            </button>
-                                        </div>
-                                    )}
+                                        );
+                                    })()}
 
                                     <Timeline status={app.status} updates={app.statusHistory} />
                                 </div>

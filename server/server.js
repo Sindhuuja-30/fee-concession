@@ -1018,11 +1018,24 @@ app.get('/api/analytics/fee-trend', async (req, res) => {
   }
 });
 
-// 404 Handler
-app.use((req, res, next) => {
-  console.log(`!!! 404 Not Found: ${req.method} ${req.url}`);
-  res.status(404).json({ error: 'API route not found on this server' });
-});
+// Serve Static Frontend in Production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ error: 'API route not found on this server' });
+    } else {
+      res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
+    }
+  });
+} else {
+  // 404 Handler for API routes (Development)
+  app.use((req, res, next) => {
+    console.log(`!!! 404 Not Found: ${req.method} ${req.url}`);
+    res.status(404).json({ error: 'API route not found on this server' });
+  });
+}
 
 // Global Error Handler
 app.use((err, req, res, next) => {

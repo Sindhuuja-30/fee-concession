@@ -151,9 +151,17 @@ const validatePassword = (password) => {
 };
 
 // --- Database Connection ---
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/fee_concession_db')
-  .then(() => console.log('MongoDB Connected'))
-  .catch(err => console.log(err));
+const connectDB = async () => {
+    try {
+        const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/fee_concession_db');
+        console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    } catch (err) {
+        console.error(`❌ MongoDB Connection Error: ${err.message}`);
+        // Do not exit process, let it try to reconnect or handle via middleware
+    }
+};
+
+connectDB();
 
 // --- API Routes ---
 
@@ -162,6 +170,14 @@ app.post('/api/register', async (req, res) => {
   try {
     const { name, email: rawEmail, password, role } = req.body;
     const email = rawEmail ? rawEmail.trim().toLowerCase() : '';
+
+    // Check Database Connectivity
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ 
+            error: 'Database connection issue. The MongoDB service may not be running. Please check your backend logs.',
+            details: 'Connection state: ' + mongoose.connection.readyState
+        });
+    }
 
     // Basic validation
     if (!name || !email || !password || !role) {

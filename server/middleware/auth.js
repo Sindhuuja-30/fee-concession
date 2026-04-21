@@ -12,6 +12,15 @@ async function authenticateUser(req, res, next) {
             return res.status(401).json({ error: 'Authentication required: User ID missing' });
         }
 
+        // Check Database Connectivity
+        if (mongoose.connection.readyState !== 1) {
+            console.error('[AUTH_ERROR] DB disconnected. readyState:', mongoose.connection.readyState);
+            return res.status(503).json({ 
+                error: 'Service Unavailable: Database connection is down.',
+                details: 'Please try again in a few moments.'
+            });
+        }
+
         const user = await User.findById(userId);
         if (!user) {
             return res.status(401).json({ error: 'Authentication failed: User not found' });
@@ -21,8 +30,11 @@ async function authenticateUser(req, res, next) {
         req.user = user;
         next();
     } catch (error) {
-        console.error('[AUTH ERROR]', error);
-        return res.status(500).json({ error: 'Authentication error' });
+        console.error('[AUTH_ERROR]:', error);
+        return res.status(500).json({ 
+            error: 'Authentication error',
+            details: process.env.NODE_ENV === 'development' ? error.message : 'Internal Server Error'
+        });
     }
 }
 
@@ -71,6 +83,14 @@ function checkRole(requiredRole) {
                 return res.status(401).json({ error: 'User ID required for authorization' });
             }
 
+            // Check Database Connectivity
+            if (mongoose.connection.readyState !== 1) {
+                console.error('[AUTH_ERROR] DB disconnected. readyState:', mongoose.connection.readyState);
+                return res.status(503).json({ 
+                    error: 'Service Unavailable: Database connection is down'
+                });
+            }
+
             const user = await User.findById(userId);
             if (!user) {
                 return res.status(401).json({ error: 'User not found' });
@@ -86,8 +106,11 @@ function checkRole(requiredRole) {
             req.user = user;
             next();
         } catch (error) {
-            console.error('[ROLE CHECK ERROR]', error);
-            return res.status(500).json({ error: 'Authorization error' });
+            console.error('[ROLE_CHECK_ERROR]:', error);
+            return res.status(500).json({ 
+                error: 'Authorization error',
+                details: process.env.NODE_ENV === 'development' ? error.message : 'Internal Server Error'
+            });
         }
     };
 }

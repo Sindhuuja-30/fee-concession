@@ -1,7 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
 
 const User = require('./models/User');
 const Concession = require('./models/Concession');
@@ -153,36 +153,51 @@ const validatePassword = (password) => {
 // --- Database Connection ---
 const connectDB = async () => {
     try {
-        const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/fee_concession_db');
+        const mongoUri = process.env.MONGO_URI;
+        if (!mongoUri) {
+            throw new Error('MONGO_URI is not defined in environment variables');
+        }
+        
+        // Mask credentials for logging
+        const maskedUri = mongoUri.replace(/\/\/(.*):(.*)@/, '//***:***@');
+        console.log(`🔍 Attempting to connect to MongoDB: ${maskedUri}`);
+
+        const conn = await mongoose.connect(mongoUri);
         console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+        return conn;
     } catch (err) {
         console.error(`❌ MongoDB Connection Error: ${err.message}`);
-        // Do not exit process, let it try to reconnect or handle via middleware
+        throw err; // Re-throw to handle in startServer
     }
 };
-
-connectDB();
 
 // --- API Routes ---
 
 // 1. Register
 app.post('/api/register', async (req, res) => {
   try {
-    const { name, email: rawEmail, password, role } = req.body;
-    const email = rawEmail ? rawEmail.trim().toLowerCase() : '';
+    // Defensive check for req.body
+    if (!req.body) {
+      return res.status(400).json({ error: 'Request body is missing' });
+    }
 
+    const { name, email: rawEmail, password, role } = req.body;
+    
     // Check Database Connectivity
     if (mongoose.connection.readyState !== 1) {
+        console.error('[REGISTER_ERROR] DB disconnected. readyState:', mongoose.connection.readyState);
         return res.status(503).json({ 
-            error: 'Database connection issue. The MongoDB service may not be running. Please check your backend logs.',
-            details: 'Connection state: ' + mongoose.connection.readyState
+            error: 'Service Unavailable: Database connection is down.',
+            details: 'Please try again in a few moments.'
         });
     }
 
     // Basic validation
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ error: 'All fields are required' });
+    if (!name || !rawEmail || !password || !role) {
+      return res.status(400).json({ error: 'All fields (name, email, password, role) are required' });
     }
+
+    const email = rawEmail.trim().toLowerCase();
 
     // Strict Password Validation
     const passwordError = validatePassword(password);
@@ -193,19 +208,26 @@ app.post('/api/register', async (req, res) => {
     // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ error: 'User already exists with this email' });
     }
 
     // Create new user
     const newUser = new User({ name, email, password, role });
     await newUser.save();
 
+    console.log(`[REGISTER_SUCCESS] User created: ${email} (${role})`);
     res.status(201).json({ message: 'Registration successful' });
   } catch (err) {
     console.error('[REGISTER_ERROR]:', err);
+    
+    // Handle Mongoose Unique Constraint Error
+    if (err.code === 11000) {
+        return res.status(400).json({ error: 'User already exists' });
+    }
+
     res.status(500).json({
       error: 'Registration failed due to server error',
-      details: err.message
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
     });
   }
 });
@@ -214,6 +236,10 @@ app.post('/api/register', async (req, res) => {
 // 2. Login
 app.post('/api/login', async (req, res) => {
   try {
+    if (!req.body) {
+      return res.status(400).json({ error: 'Request body is missing' });
+    }
+
     const { email: rawEmail, password } = req.body;
     const email = rawEmail ? rawEmail.trim().toLowerCase() : '';
 
@@ -228,7 +254,10 @@ app.post('/api/login', async (req, res) => {
     // Task: Ensure database connection is active
     if (mongoose.connection.readyState !== 1) {
       console.error('[DATABASE_ERROR] MongoDB is not connected. ReadyState:', mongoose.connection.readyState);
-      return res.status(500).json({ error: 'Database connection issue. Please try again later.' });
+      return res.status(503).json({ 
+        error: 'Service Unavailable: Database connection is down.',
+        details: 'Please try again in a few moments.'
+      });
     }
 
     // Task: Log database query result
@@ -262,8 +291,7 @@ app.post('/api/login', async (req, res) => {
     console.error('[LOGIN_ERROR] unexpected server error:', err.stack);
     res.status(500).json({
       error: 'Internal Server Error',
-      details: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Login failed due to server error'
     });
   }
 });
@@ -323,7 +351,11 @@ app.get('/api/user/:id', async (req, res) => {
     const { password, ...userData } = user.toObject();
     res.json(userData);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[USER_FETCH_ERROR]:', err);
+    res.status(500).json({
+        error: 'Internal Server Error',
+        details: process.env.NODE_ENV === 'development' ? err.message : 'Could not fetch user data'
+    });
   }
 });
 
@@ -345,6 +377,14 @@ mongoose.connection.once('open', () => { seedSchemes().catch(console.error); });
 app.post('/api/apply', (req, res, next) => {
   // Build dynamic sports cert fields (up to 10)
   const sportsCertFields = Array.from({ length: 10 }, (_, i) => ({ name: `sportsCert_${i}`, maxCount: 1 }));
+
+  // Check Database Connectivity BEFORE potentially handling large uploads
+  if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+          error: 'Service Unavailable: Database connection is down.',
+          details: 'Please try again in a few moments.'
+      });
+  }
 
   upload.fields([
     { name: 'incomeCert', maxCount: 1 },
@@ -596,40 +636,67 @@ app.post('/api/apply', (req, res, next) => {
     });
 
   } catch (err) {
-    console.error('Database/Server Error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('[APPLY_ERROR]:', err);
+    res.status(500).json({
+      error: 'Application submission failed',
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
   }
 });
 
 // 3. Student: View My Applications
 app.get('/api/student/:id', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
     const applications = await Concession.find({ studentId: req.params.id });
     res.json(applications);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[VIEW_APPS_ERROR]:', err);
+    res.status(500).json({
+      error: 'Failed to fetch applications',
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
   }
 });
 
 // 4. Admin: View All Applications
 app.get('/api/all', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
     const applications = await Concession.find().populate('studentId', 'name email');
     res.json(applications);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[ADMIN_VIEW_ALL_ERROR]:', err);
+    res.status(500).json({
+      error: 'Failed to fetch all applications',
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
   }
 });
 
 // 5. Admin: Update Status & Approve/Reject
 app.post('/api/status', async (req, res) => {
   try {
+    if (!req.body) {
+        return res.status(400).json({ error: 'Request body is missing' });
+    }
+
     const { id, status, finalApprovedRate, rejectionReason, adminId } = req.body;
 
     console.log(`[STATUS_UPDATE] AppID: ${id}, Status: ${status}, AdminID: ${adminId}`);
 
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
     if (!adminId) return res.status(400).json({ error: 'Admin ID is required.' });
     if (!id) return res.status(400).json({ error: 'Application ID (id) is required.' });
+    
+    // ... (rest of logic) ...
 
     const admin = await User.findById(adminId);
     if (!admin || admin.role !== 'admin') {
@@ -698,17 +765,26 @@ app.post('/api/status', async (req, res) => {
 // GET /api/decisions — Approval/Rejection History
 app.get('/api/decisions', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
     const decisions = await DecisionHistory.find().sort({ timestamp: -1 });
     res.json(decisions);
   } catch (err) {
-    console.error('[DECISIONS ERROR]', err);
-    res.status(500).json({ error: err.message });
+    console.error('[DECISIONS_ERROR]:', err);
+    res.status(500).json({
+      error: 'Failed to fetch decision history',
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
   }
 });
 
 // GET /api/schemes — Scheme Utilization Data
 app.get('/api/schemes', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
     const schemes = await Scheme.find();
     const result = schemes.map(s => ({
       name: s.name,
@@ -719,8 +795,11 @@ app.get('/api/schemes', async (req, res) => {
     }));
     res.json(result);
   } catch (err) {
-    console.error('[SCHEMES ERROR]', err);
-    res.status(500).json({ error: err.message });
+    console.error('[SCHEMES_ERROR]:', err);
+    res.status(500).json({
+      error: 'Failed to fetch schemes',
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
   }
 });
 
@@ -772,6 +851,9 @@ app.delete('/api/applications/:id', async (req, res) => {
 // 7. Notifications: Get User Notifications
 app.get('/api/notifications/:userId', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
     console.log(`[NOTIFICATION FETCH] User ID: ${req.params.userId}`);
 
     const notifications = await Notification.find({
@@ -783,17 +865,22 @@ app.get('/api/notifications/:userId', async (req, res) => {
       ]
     }).sort({ date: -1 });
 
-    console.log(`[NOTIFICATION FETCH] Found ${notifications.length} unread notification(s)`);
     res.json(notifications);
   } catch (err) {
-    console.error('[NOTIFICATION FETCH ERROR]', err);
-    res.status(500).json({ error: err.message });
+    console.error('[NOTIFICATION_FETCH_ERROR]:', err);
+    res.status(500).json({
+      error: 'Failed to fetch notifications',
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
   }
 });
 
 // 7. Notifications: Mark as Read
 app.put('/api/notifications/:id/read', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
     console.log(`[MARK AS READ] Notification ID: ${req.params.id}`);
 
     const result = await Notification.findByIdAndUpdate(
@@ -802,16 +889,13 @@ app.put('/api/notifications/:id/read', async (req, res) => {
       { new: true }
     );
 
-    if (result) {
-      console.log(`[MARK AS READ] Success - isRead is now: ${result.isRead}`);
-    } else {
-      console.log(`[MARK AS READ] Notification not found`);
-    }
-
     res.json({ success: true, notification: result });
   } catch (err) {
-    console.error('[MARK AS READ ERROR]', err);
-    res.status(500).json({ error: err.message });
+    console.error('[MARK_READ_ERROR]:', err);
+    res.status(500).json({
+      error: 'Failed to update notification',
+      details: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    });
   }
 });
 
@@ -1060,4 +1144,26 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+const startServer = async () => {
+    try {
+        await connectDB();
+        app.listen(PORT, () => {
+            console.log(`🚀 Server running on port ${PORT}`);
+            console.log(`🌐 Health check available at: http://localhost:${PORT}/api/health`);
+        });
+    } catch (err) {
+        console.error('❌ Failed to start server:', err.message);
+        // On Render/Production, we want to exit so the orchestrator can restart us
+        process.exit(1);
+    }
+};
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err.message);
+    // Gracefully shutdown might be better in some cases
+    // server.close(() => process.exit(1));
+});
+
+startServer();

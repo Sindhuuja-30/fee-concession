@@ -19,8 +19,16 @@ const users = [
 
 const seedDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/fee_concession_db');
-        console.log('MongoDB Connected');
+        const mongoUri = process.env.MONGO_URI;
+        if (!mongoUri) {
+            throw new Error('MONGO_URI is not defined in environment variables');
+        }
+
+        const maskedUri = mongoUri.replace(/\/\/(.*):(.*)@/, '//***:***@');
+        console.log(`🔍 Attempting to connect to MongoDB: ${maskedUri}`);
+
+        await mongoose.connect(mongoUri);
+        console.log('✅ MongoDB Connected');
 
         // Check if users exist
         const count = await User.countDocuments();

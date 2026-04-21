@@ -5,8 +5,16 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const normalizeEmails = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/fee_concession_db');
-        console.log('MongoDB Connected');
+        const mongoUri = process.env.MONGO_URI;
+        if (!mongoUri) {
+            throw new Error('MONGO_URI is not defined');
+        }
+
+        const maskedUri = mongoUri.replace(/\/\/(.*):(.*)@/, '//***:***@');
+        console.log(`🔍 Connecting to MongoDB: ${maskedUri}`);
+
+        await mongoose.connect(mongoUri);
+        console.log('✅ MongoDB Connected');
 
         const users = await User.find({});
         console.log(`Found ${users.length} users to check.`);

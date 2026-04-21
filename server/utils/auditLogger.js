@@ -24,7 +24,7 @@ async function logAction(action, userId, userRole, applicationId = null, message
         console.log(`[AUDIT] ${action}: ${message}`);
     } catch (error) {
         // Non-blocking: log error but don't crash the app
-        console.error('[AUDIT ERROR] Failed to log action:', error.message);
+        console.error('[AUDIT_ERROR]:', error.message);
     }
 }
 
